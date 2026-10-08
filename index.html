@@ -43,27 +43,13 @@ ul.plain{list-style:none;padding:0;margin:0}ul.plain li{padding:8px 0;border-bot
   :root{--bg:#fff;--ink:#000;--mute:#444;--line:#999;--card:#fff;--can:#1f7a5c;--maybe:#e0a526}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   body{font-size:11px}
-  .tabs,.card.row,#exportBtn,#pdfBtn,#paneV,#vMsg,#adminView>h1{display:none!important}
+  .tabs,#paneO>.card:first-child,#exportBtn,#pdfBtn,#paneV,#vMsg,#adminView>h1{display:none!important}
   .printOnly{display:block}
   main{max-width:none;padding:0}
   .scroll{overflow:visible}
   table{min-width:0!important}
   tr,td{break-inside:avoid}
   #notes,#missing{break-inside:avoid}
-}
-.print-only{display:none}
-@media print{
-  @page{size:A4 landscape;margin:12mm}
-  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  body{background:#fff;color:#000;font-size:12px}
-  .tabs,.card.row,#paneV,#vMsg,h1{display:none!important}
-  .print-only{display:block}
-  #adminView{display:block}
-  .scroll{overflow:visible}
-  table{min-width:0!important}
-  td.m{font-size:10px;padding:4px}
-  h2{page-break-after:avoid}
-  .card{border:none;padding:0}
 }
 </style>
 </head>
@@ -112,13 +98,14 @@ ul.plain{list-style:none;padding:0;margin:0}ul.plain li{padding:8px 0;border-bot
   <div class="tabs"><button id="tabO">Übersicht</button><button id="tabV" class="sec">Kurse &amp; Lehrkräfte</button></div>
 
   <div id="paneO">
-    <div class="card row" style="align-items:end">
-      <div><label for="aCourse">Kurs</label><select id="aCourse"></select></div>
-      <div style="flex:0"><button id="pdfBtn" class="sec" style="white-space:nowrap">🖨 Als PDF speichern / drucken</button></div>
-      <div style="flex:0"><button id="pdfBtn" class="sec" style="white-space:nowrap">🖨 Als PDF speichern / drucken</button></div>
-      <div style="flex:0"><button id="exportBtn" style="white-space:nowrap">⬇ Übersicht als Excel herunterladen</button></div>
+    <div class="card">
+      <label for="aCourse">Kurs</label>
+      <select id="aCourse"></select>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+        <button id="pdfBtn" class="sec">Als PDF speichern / drucken</button>
+        <button id="exportBtn">Als Excel herunterladen</button>
+      </div>
     </div>
-    <h2 id="printTitle" class="print-only"></h2>
     <h2 id="printTitle" class="printOnly"></h2>
     <div class="leg"><span>Zahl = Lehrkräfte, die können. Darunter: wer kann, und wer nur zur Not.</span></div>
     <div class="scroll"><table id="matrix"></table></div>
@@ -300,11 +287,6 @@ async function overview() {
   const notes = cache.n.filter(x => x.note);
   $('notes').innerHTML = notes.length ? '<ul class="plain">' + notes.map(x => `<li><b>${esc(name(x.teacher_id))}</b><span style="flex:1">${esc(x.note)}</span></li>`).join('') + '</ul>' : 'Keine Notizen.';
 }
-$('pdfBtn').onclick = () => {
-  const c = courses.find(x => x.id === $('aCourse').value);
-  $('printTitle').textContent = c ? `${c.name} (${fmt(c.start_date)} – ${fmt(c.end_date)})` : '';
-  window.print();
-};
 $('pdfBtn').onclick = () => {
   const c = courses.find(x => x.id === $('aCourse').value);
   $('printTitle').textContent = c ? `${c.name} (${fmt(c.start_date)} – ${fmt(c.end_date)})` : '';
