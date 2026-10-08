@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verfügbarkeit Lehrkräfte</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f6f7f4;--ink:#1d2b2a;--mute:#5d6b69;--line:#d5dad6;--card:#fff;--can:#1f7a5c;--maybe:#e0a526;--acc:#1d2b2a}
+@media (prefers-color-scheme:dark){:root{--bg:#141a19;--ink:#e8eeec;--mute:#9fb0ac;--line:#2f3b39;--card:#1c2423;--can:#3fae88;--maybe:#e0a526;--acc:#e8eeec}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 'Atkinson Hyperlegible',system-ui,sans-serif}
+main{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:1.6rem;margin:.2em 0 .6em}h2{font-size:1.15rem;margin:1.6em 0 .5em}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px;margin:12px 0}
+label{display:block;font-weight:700;margin:10px 0 4px}
+input,select,textarea,button{font:inherit;color:inherit}
+input,select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--card)}
+button{cursor:pointer;border:1px solid var(--acc);background:var(--acc);color:var(--bg);padding:10px 16px;border-radius:6px;font-weight:700}
+button.sec{background:none;color:var(--ink);border-color:var(--line)}
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--maybe);outline-offset:2px}
+.row{display:flex;gap:12px;flex-wrap:wrap}.row>*{flex:1;min-width:160px}
+.tabs{display:flex;gap:8px;margin:8px 0}
+.scroll{overflow-x:auto}
+table{border-collapse:separate;border-spacing:4px;width:100%;min-width:480px}
+th{font-weight:700;text-align:center;padding:4px}
+th.s{text-align:left;font-weight:400;font-size:.85rem;color:var(--mute);white-space:nowrap}
+td.g button{width:100%;height:56px;background:var(--bg);color:var(--ink);border:1px solid var(--line);font-weight:400}
+td.g button[data-s="1"]{background:var(--can);color:#fff;border-color:var(--can)}
+td.g button[data-s="2"]{background:var(--maybe);color:#1d1a10;border-color:var(--maybe)}
+td.m{vertical-align:top;border:1px solid var(--line);border-radius:6px;padding:8px;font-size:.88rem;min-width:110px}
+td.m b{font-size:1.1rem}
+.leg{display:flex;gap:16px;flex-wrap:wrap;font-size:.9rem;color:var(--mute);margin:8px 0}
+.dot{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px;border:1px solid var(--line)}
+.msg{margin:10px 0;font-weight:700}.err{color:#c0392b}.ok{color:var(--can)}
+ul.plain{list-style:none;padding:0;margin:0}ul.plain li{padding:8px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px}
+.hide{display:none}
+</style>
+</head>
+<body>
+<main>
+
+<!-- LOGIN -->
+<section id="login" class="hide">
+  <h1>Verfügbarkeit Lehrkräfte</h1>
+  <div class="card">
+    <label for="pw">Passwort</label>
+    <input id="pw" type="password" autocomplete="current-password">
+    <label style="font-weight:400;display:flex;gap:8px;align-items:center"><input id="showPw" type="checkbox" style="width:auto"> Passwort anzeigen</label>
+    <p><button id="loginBtn">Anmelden</button></p>
+    <div id="loginMsg" class="msg err"></div>
+  </div>
+</section>
+
+<!-- LEHRKRÄFTE -->
+<section id="teacherView" class="hide">
+  <h1>Wann kannst du unterrichten?</h1>
+  <div class="card">
+    <div class="row">
+      <div><label for="tSel">Dein Name</label><select id="tSel"></select></div>
+      <div><label for="cSel">Kurs</label><select id="cSel"></select></div>
+    </div>
+  </div>
+  <div id="formArea" class="hide">
+    <div class="card">
+      <p style="margin-top:0">Tippe auf ein Feld: einmal = <b>kann</b>, zweimal = <b>kann zur Not</b>, dreimal = leer. Das gilt für alle Wochen des Kurses.</p>
+      <div class="leg"><span><i class="dot" style="background:var(--can)"></i>kann</span><span><i class="dot" style="background:var(--maybe)"></i>kann zur Not</span><span><i class="dot" style="background:var(--bg)"></i>kann nicht</span></div>
+      <div class="scroll"><table id="grid"></table></div>
+    </div>
+    <div class="card">
+      <label for="note">Notiz (optional)</label>
+      <textarea id="note" rows="3" placeholder="Beispiel: Kann am 14.02. nicht. Am 03.03. erst ab Slot 3."></textarea>
+    </div>
+    <button id="saveBtn">Speichern</button>
+    <div id="saveMsg" class="msg"></div>
+  </div>
+</section>
+
+<!-- ADMIN -->
+<section id="adminView" class="hide">
+  <h1>Übersicht</h1>
+  <div class="tabs"><button id="tabO">Übersicht</button><button id="tabV" class="sec">Kurse &amp; Lehrkräfte</button></div>
+
+  <div id="paneO">
+    <div class="card row" style="align-items:end">
+      <div><label for="aCourse">Kurs</label><select id="aCourse"></select></div>
+      <div style="flex:0"><button id="exportBtn" style="white-space:nowrap">⬇ Übersicht als Excel herunterladen</button></div>
+    </div>
+    <div class="leg"><span>Zahl = Lehrkräfte, die können. Darunter: wer kann, und wer nur zur Not.</span></div>
+    <div class="scroll"><table id="matrix"></table></div>
+    <h2>Pro Lehrkraft</h2>
+    <div class="leg"><span><i class="dot" style="background:var(--can)"></i>kann</span><span><i class="dot" style="background:var(--maybe)"></i>kann zur Not</span></div>
+    <div class="scroll"><table id="perTeacher" style="min-width:640px"></table></div>
+    <h2>Noch nichts eingetragen</h2><div id="missing" class="card"></div>
+    <h2>Notizen</h2><div id="notes" class="card"></div>
+  </div>
+
+  <div id="paneV" class="hide">
+    <h2>Neuer Kurs</h2>
+    <div class="card">
+      <label for="cName">Name</label><input id="cName" placeholder="z. B. Winterkurs 2027">
+      <div class="row"><div><label for="cStart">Von</label><input id="cStart" type="date"></div><div><label for="cEnd">Bis</label><input id="cEnd" type="date"></div></div>
+      <p><button id="addCourse">Kurs anlegen</button></p>
+      <ul class="plain" id="courseList"></ul>
+    </div>
+    <h2>Lehrkräfte</h2>
+    <div class="card">
+      <label for="tName">Name</label><input id="tName" placeholder="Vor- und Nachname">
+      <p><button id="addTeacher">Lehrkraft anlegen</button></p>
+      <ul class="plain" id="teacherList"></ul>
+    </div>
+  </div>
+  <div id="vMsg" class="msg"></div>
+</section>
+
+</main>
+<script>
+/* ====== HIER EINTRAGEN (siehe Anleitung) ====== */
+const SUPABASE_URL = 'https://rayowkplemhsqmnxxaoc.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_fTDTvE0ATZrXGBRZfc5GHw_fOEZhH5N';
+const TEACHER_EMAIL = 'sabishiran@googlemail.com';
+const ADMIN_EMAIL = 'carinia.gaimusho@gmail.com';
+/* =============================================== */
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const DAYS = ['Mo','Di','Mi','Do','Fr'];
+const SLOTS = ['9:30–10:50','11:05–12:25','13:30–14:50','15:05–16:25'];
+const $ = id => document.getElementById(id);
+const show = id => ['login','teacherView','adminView'].forEach(s => $(s).classList.toggle('hide', s !== id));
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt = d => new Date(d).toLocaleDateString('de-DE');
+let courses = [], teachers = [], state = {};
+
+async function init() {
+  const { data } = await sb.auth.getSession();
+  data.session ? enter(data.session.user.email) : show('login');
+}
+$('loginBtn').onclick = async () => {
+  const password = $('pw').value;
+  $('loginMsg').textContent = '';
+  for (const email of [TEACHER_EMAIL, ADMIN_EMAIL]) {
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (!error) return enter(email);
+  }
+  $('loginMsg').textContent = 'Passwort falsch. Bitte noch einmal versuchen.';
+};
+$('showPw').onchange = e => { $('pw').type = e.target.checked ? 'text' : 'password'; };
+$('pw').onkeydown = e => { if (e.key === 'Enter') $('loginBtn').click(); };
+
+async function loadBase() {
+  [courses, teachers] = (await Promise.all([
+    sb.from('courses').select('*').order('start_date'),
+    sb.from('teachers').select('*').order('name')
+  ])).map(r => r.data || []);
+}
+const opts = (list, f) => list.map(x => `<option value="${x.id}">${esc(f(x))}</option>`).join('');
+
+async function enter(email) {
+  await loadBase();
+  email === ADMIN_EMAIL ? adminInit() : teacherInit();
+}
+
+/* ---------- Lehrkräfte ---------- */
+function teacherInit() {
+  show('teacherView');
+  $('tSel').innerHTML = '<option value="">Bitte wählen</option>' + opts(teachers, t => t.name);
+  $('cSel').innerHTML = '<option value="">Bitte wählen</option>' + opts(courses, c => `${c.name} (${fmt(c.start_date)} – ${fmt(c.end_date)})`);
+  $('tSel').onchange = $('cSel').onchange = loadForm;
+}
+function drawGrid() {
+  let h = '<tr><th></th>' + DAYS.map(d => `<th>${d}</th>`).join('') + '</tr>';
+  SLOTS.forEach((s, si) => {
+    h += `<tr><th class="s">${si + 1}<br>${s}</th>` + DAYS.map((_, di) =>
+      `<td class="g"><button data-d="${di + 1}" data-s="${state[`${di + 1}-${si + 1}`] || 0}" data-k="${di + 1}-${si + 1}" aria-label="${DAYS[di]} Slot ${si + 1}"></button></td>`).join('') + '</tr>';
+  });
+  $('grid').innerHTML = h;
+  $('grid').querySelectorAll('button').forEach(b => b.onclick = () => {
+    const n = (+b.dataset.s + 1) % 3; b.dataset.s = n; state[b.dataset.k] = n;
+    b.textContent = n === 1 ? 'kann' : n === 2 ? 'zur Not' : '';
+  });
+  $('grid').querySelectorAll('button').forEach(b => { const n = +b.dataset.s; b.textContent = n === 1 ? 'kann' : n === 2 ? 'zur Not' : ''; });
+}
+async function loadForm() {
+  const t = $('tSel').value, c = $('cSel').value;
+  $('saveMsg').textContent = '';
+  $('formArea').classList.toggle('hide', !(t && c));
+  if (!(t && c)) return;
+  const [a, n] = await Promise.all([
+    sb.from('availability').select('*').eq('teacher_id', t).eq('course_id', c),
+    sb.from('notes').select('note').eq('teacher_id', t).eq('course_id', c).maybeSingle()
+  ]);
+  state = {};
+  (a.data || []).forEach(r => state[`${r.day}-${r.slot}`] = r.status === 'can' ? 1 : 2);
+  $('note').value = n.data?.note || '';
+  drawGrid();
+}
+$('saveBtn').onclick = async () => {
+  const t = $('tSel').value, c = $('cSel').value, m = $('saveMsg');
+  m.className = 'msg'; m.textContent = 'Speichern …';
+  const rows = Object.entries(state).filter(([, v]) => v).map(([k, v]) => {
+    const [day, slot] = k.split('-').map(Number);
+    return { teacher_id: t, course_id: c, day, slot, status: v === 1 ? 'can' : 'maybe' };
+  });
+  const r1 = await sb.from('availability').delete().eq('teacher_id', t).eq('course_id', c);
+  const r2 = rows.length ? await sb.from('availability').insert(rows) : {};
+  const r3 = await sb.from('notes').upsert({ teacher_id: t, course_id: c, note: $('note').value.trim() });
+  const err = r1.error || r2.error || r3.error;
+  m.className = 'msg ' + (err ? 'err' : 'ok');
+  m.textContent = err ? 'Fehler beim Speichern: ' + err.message : 'Gespeichert. Du kannst deinen Eintrag jederzeit wieder ändern.';
+};
+
+/* ---------- Admin ---------- */
+function adminInit() {
+  show('adminView');
+  refreshAdmin();
+  $('aCourse').onchange = overview;
+}
+function refreshAdmin() {
+  const cur = $('aCourse').value;
+  $('aCourse').innerHTML = opts(courses, c => `${c.name} (${fmt(c.start_date)} – ${fmt(c.end_date)})`);
+  if (cur) $('aCourse').value = cur;
+  $('courseList').innerHTML = courses.map(c => `<li><span>${esc(c.name)}<br><small>${fmt(c.start_date)} – ${fmt(c.end_date)}</small></span><button class="sec" onclick="del('courses','${c.id}')">Löschen</button></li>`).join('') || '<li>Noch kein Kurs</li>';
+  $('teacherList').innerHTML = teachers.map(t => `<li><span>${esc(t.name)}</span><button class="sec" onclick="del('teachers','${t.id}')">Löschen</button></li>`).join('') || '<li>Noch keine Lehrkraft</li>';
+  overview();
+}
+$('tabO').onclick = () => { $('paneO').classList.remove('hide'); $('paneV').classList.add('hide'); $('tabO').classList.remove('sec'); $('tabV').classList.add('sec'); };
+$('tabV').onclick = () => { $('paneV').classList.remove('hide'); $('paneO').classList.add('hide'); $('tabV').classList.remove('sec'); $('tabO').classList.add('sec'); };
+
+let cache = {};
+async function overview() {
+  const c = $('aCourse').value;
+  if (!c) { $('matrix').innerHTML = '<tr><td>Lege zuerst unter „Kurse &amp; Lehrkräfte“ einen Kurs an.</td></tr>'; return; }
+  const [a, n] = await Promise.all([
+    sb.from('availability').select('*').eq('course_id', c),
+    sb.from('notes').select('*').eq('course_id', c)
+  ]);
+  cache = { a: a.data || [], n: n.data || [] };
+  const name = id => teachers.find(t => t.id === id)?.name || '?';
+  const cell = (d, s) => {
+    const r = cache.a.filter(x => x.day === d && x.slot === s);
+    return { can: r.filter(x => x.status === 'can').map(x => name(x.teacher_id)).sort(), maybe: r.filter(x => x.status === 'maybe').map(x => name(x.teacher_id)).sort() };
+  };
+  const max = Math.max(1, teachers.length);
+  let h = '<tr><th></th>' + DAYS.map(d => `<th>${d}</th>`).join('') + '</tr>';
+  SLOTS.forEach((s, si) => {
+    h += `<tr><th class="s">${si + 1}<br>${s}</th>`;
+    DAYS.forEach((_, di) => {
+      const x = cell(di + 1, si + 1), alpha = (x.can.length / max * .55).toFixed(2);
+      h += `<td class="m" style="background:color-mix(in srgb,var(--can) ${Math.round(alpha * 100)}%,var(--card))"><b>${x.can.length}</b> von ${teachers.length}<br>${esc(x.can.join(', '))}${x.maybe.length ? `<br><i style="color:var(--mute)">zur Not: ${esc(x.maybe.join(', '))}</i>` : ''}</td>`;
+    });
+    h += '</tr>';
+  });
+  $('matrix').innerHTML = h;
+  let p = '<tr><th></th>' + DAYS.map(d => `<th colspan="4">${d}</th>`).join('') + '</tr><tr><th class="s">Lehrkraft</th>' + DAYS.map(() => [1,2,3,4].map(n => `<th class="s" style="text-align:center">${n}</th>`).join('')).join('') + '</tr>';
+  teachers.forEach(t => {
+    p += `<tr><th class="s" style="color:var(--ink)">${esc(t.name)}</th>` + DAYS.map((_, di) => [1,2,3,4].map(si => {
+      const r = cache.a.find(x => x.teacher_id === t.id && x.day === di + 1 && x.slot === si);
+      const bg = r ? (r.status === 'can' ? 'var(--can)' : 'var(--maybe)') : 'var(--bg)';
+      return `<td style="background:${bg};height:28px;border:1px solid var(--line);border-radius:4px;${si === 4 ? 'border-right:3px solid var(--line)' : ''}"></td>`;
+    }).join('')).join('') + '</tr>';
+  });
+  $('perTeacher').innerHTML = p;
+  const done = new Set([...cache.a.map(x => x.teacher_id), ...cache.n.map(x => x.teacher_id)]);
+  const miss = teachers.filter(t => !done.has(t.id));
+  $('missing').innerHTML = miss.length ? esc(miss.map(t => t.name).join(', ')) : 'Alle haben etwas eingetragen.';
+  const notes = cache.n.filter(x => x.note);
+  $('notes').innerHTML = notes.length ? '<ul class="plain">' + notes.map(x => `<li><b>${esc(name(x.teacher_id))}</b><span style="flex:1">${esc(x.note)}</span></li>`).join('') + '</ul>' : 'Keine Notizen.';
+}
+$('exportBtn').onclick = () => {
+  const c = courses.find(x => x.id === $('aCourse').value); if (!c) return;
+  const name = id => teachers.find(t => t.id === id)?.name || '?';
+  const m = [['Slot', ...DAYS]];
+  SLOTS.forEach((s, si) => m.push([`${si + 1}: ${s}`, ...DAYS.map((_, di) => {
+    const r = cache.a.filter(x => x.day === di + 1 && x.slot === si + 1);
+    const k = r.filter(x => x.status === 'can').map(x => name(x.teacher_id)).sort().join(', ');
+    const z = r.filter(x => x.status === 'maybe').map(x => name(x.teacher_id)).sort().join(', ');
+    return `Kann (${k ? k.split(', ').length : 0}): ${k}` + (z ? `\nZur Not: ${z}` : '');
+  })]));
+  const p = [['Lehrkraft', ...DAYS.flatMap((d, di) => SLOTS.map((_, si) => `${d} ${si + 1}`))]];
+  teachers.forEach(t => p.push([t.name, ...DAYS.flatMap((_, di) => SLOTS.map((_, si) => {
+    const r = cache.a.find(x => x.teacher_id === t.id && x.day === di + 1 && x.slot === si + 1);
+    return r ? (r.status === 'can' ? 'kann' : 'zur Not') : '';
+  }))]));
+  const n = [['Lehrkraft', 'Notiz'], ...cache.n.filter(x => x.note).map(x => [name(x.teacher_id), x.note])];
+  const wb = XLSX.utils.book_new();
+  [['Übersicht', m], ['Pro Lehrkraft', p], ['Notizen', n]].forEach(([t, d]) => {
+    const ws = XLSX.utils.aoa_to_sheet(d); ws['!cols'] = d[0].map((_, i) => ({ wch: i ? (t === 'Notizen' ? 70 : t === 'Übersicht' ? 32 : 9) : 22 }));
+    XLSX.utils.book_append_sheet(wb, ws, t);
+  });
+  XLSX.writeFile(wb, `Verfuegbarkeit_${c.name.replace(/\W+/g, '_')}.xlsx`);
+};
+
+const vmsg = (t, ok) => { $('vMsg').className = 'msg ' + (ok ? 'ok' : 'err'); $('vMsg').textContent = t; };
+$('addCourse').onclick = async () => {
+  const name = $('cName').value.trim(), s = $('cStart').value, e = $('cEnd').value;
+  if (!name || !s || !e) return vmsg('Bitte Name, Start- und Enddatum ausfüllen.');
+  const { error } = await sb.from('courses').insert({ name, start_date: s, end_date: e });
+  if (error) return vmsg(error.message);
+  $('cName').value = ''; await loadBase(); refreshAdmin(); vmsg('Kurs angelegt.', true);
+};
+$('addTeacher').onclick = async () => {
+  const name = $('tName').value.trim(); if (!name) return vmsg('Bitte einen Namen eingeben.');
+  const { error } = await sb.from('teachers').insert({ name });
+  if (error) return vmsg(error.message);
+  $('tName').value = ''; await loadBase(); refreshAdmin(); vmsg('Lehrkraft angelegt.', true);
+};
+async function del(table, id) {
+  if (!confirm('Wirklich löschen? Alle zugehörigen Einträge werden ebenfalls gelöscht.')) return;
+  const { error } = await sb.from(table).delete().eq('id', id);
+  if (error) return vmsg(error.message);
+  await loadBase(); refreshAdmin(); vmsg('Gelöscht.', true);
+}
+init();
+</script>
+</body>
+</html>
