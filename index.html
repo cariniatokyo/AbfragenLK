@@ -37,6 +37,34 @@ td.m b{font-size:1.1rem}
 .msg{margin:10px 0;font-weight:700}.err{color:#c0392b}.ok{color:var(--can)}
 ul.plain{list-style:none;padding:0;margin:0}ul.plain li{padding:8px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px}
 .hide{display:none}
+.printOnly{display:none}
+@page{size:A4 landscape;margin:12mm}
+@media print{
+  :root{--bg:#fff;--ink:#000;--mute:#444;--line:#999;--card:#fff;--can:#1f7a5c;--maybe:#e0a526}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{font-size:11px}
+  .tabs,.card.row,#exportBtn,#pdfBtn,#paneV,#vMsg,#adminView>h1{display:none!important}
+  .printOnly{display:block}
+  main{max-width:none;padding:0}
+  .scroll{overflow:visible}
+  table{min-width:0!important}
+  tr,td{break-inside:avoid}
+  #notes,#missing{break-inside:avoid}
+}
+.print-only{display:none}
+@media print{
+  @page{size:A4 landscape;margin:12mm}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{background:#fff;color:#000;font-size:12px}
+  .tabs,.card.row,#paneV,#vMsg,h1{display:none!important}
+  .print-only{display:block}
+  #adminView{display:block}
+  .scroll{overflow:visible}
+  table{min-width:0!important}
+  td.m{font-size:10px;padding:4px}
+  h2{page-break-after:avoid}
+  .card{border:none;padding:0}
+}
 </style>
 </head>
 <body>
@@ -48,6 +76,7 @@ ul.plain{list-style:none;padding:0;margin:0}ul.plain li{padding:8px 0;border-bot
   <div class="card">
     <label for="pw">Passwort</label>
     <input id="pw" type="password" autocomplete="current-password">
+    <label style="font-weight:400;display:flex;gap:8px;align-items:center"><input id="showPw" type="checkbox" style="width:auto"> Passwort anzeigen</label>
     <p><button id="loginBtn">Anmelden</button></p>
     <div id="loginMsg" class="msg err"></div>
   </div>
@@ -85,10 +114,17 @@ ul.plain{list-style:none;padding:0;margin:0}ul.plain li{padding:8px 0;border-bot
   <div id="paneO">
     <div class="card row" style="align-items:end">
       <div><label for="aCourse">Kurs</label><select id="aCourse"></select></div>
-      <div style="flex:0"><button id="exportBtn" class="sec" style="white-space:nowrap">Excel-Export</button></div>
+      <div style="flex:0"><button id="pdfBtn" class="sec" style="white-space:nowrap">🖨 Als PDF speichern / drucken</button></div>
+      <div style="flex:0"><button id="pdfBtn" class="sec" style="white-space:nowrap">🖨 Als PDF speichern / drucken</button></div>
+      <div style="flex:0"><button id="exportBtn" style="white-space:nowrap">⬇ Übersicht als Excel herunterladen</button></div>
     </div>
+    <h2 id="printTitle" class="print-only"></h2>
+    <h2 id="printTitle" class="printOnly"></h2>
     <div class="leg"><span>Zahl = Lehrkräfte, die können. Darunter: wer kann, und wer nur zur Not.</span></div>
     <div class="scroll"><table id="matrix"></table></div>
+    <h2>Pro Lehrkraft</h2>
+    <div class="leg"><span><i class="dot" style="background:var(--can)"></i>kann</span><span><i class="dot" style="background:var(--maybe)"></i>kann zur Not</span></div>
+    <div class="scroll"><table id="perTeacher" style="min-width:640px"></table></div>
     <h2>Noch nichts eingetragen</h2><div id="missing" class="card"></div>
     <h2>Notizen</h2><div id="notes" class="card"></div>
   </div>
@@ -142,6 +178,7 @@ $('loginBtn').onclick = async () => {
   }
   $('loginMsg').textContent = 'Passwort falsch. Bitte noch einmal versuchen.';
 };
+$('showPw').onchange = e => { $('pw').type = e.target.checked ? 'text' : 'password'; };
 $('pw').onkeydown = e => { if (e.key === 'Enter') $('loginBtn').click(); };
 
 async function loadBase() {
@@ -248,12 +285,31 @@ async function overview() {
     h += '</tr>';
   });
   $('matrix').innerHTML = h;
+  let p = '<tr><th></th>' + DAYS.map(d => `<th colspan="4">${d}</th>`).join('') + '</tr><tr><th class="s">Lehrkraft</th>' + DAYS.map(() => [1,2,3,4].map(n => `<th class="s" style="text-align:center">${n}</th>`).join('')).join('') + '</tr>';
+  teachers.forEach(t => {
+    p += `<tr><th class="s" style="color:var(--ink)">${esc(t.name)}</th>` + DAYS.map((_, di) => [1,2,3,4].map(si => {
+      const r = cache.a.find(x => x.teacher_id === t.id && x.day === di + 1 && x.slot === si);
+      const bg = r ? (r.status === 'can' ? 'var(--can)' : 'var(--maybe)') : 'var(--bg)';
+      return `<td style="background:${bg};height:28px;border:1px solid var(--line);border-radius:4px;${si === 4 ? 'border-right:3px solid var(--line)' : ''}"></td>`;
+    }).join('')).join('') + '</tr>';
+  });
+  $('perTeacher').innerHTML = p;
   const done = new Set([...cache.a.map(x => x.teacher_id), ...cache.n.map(x => x.teacher_id)]);
   const miss = teachers.filter(t => !done.has(t.id));
   $('missing').innerHTML = miss.length ? esc(miss.map(t => t.name).join(', ')) : 'Alle haben etwas eingetragen.';
   const notes = cache.n.filter(x => x.note);
   $('notes').innerHTML = notes.length ? '<ul class="plain">' + notes.map(x => `<li><b>${esc(name(x.teacher_id))}</b><span style="flex:1">${esc(x.note)}</span></li>`).join('') + '</ul>' : 'Keine Notizen.';
 }
+$('pdfBtn').onclick = () => {
+  const c = courses.find(x => x.id === $('aCourse').value);
+  $('printTitle').textContent = c ? `${c.name} (${fmt(c.start_date)} – ${fmt(c.end_date)})` : '';
+  window.print();
+};
+$('pdfBtn').onclick = () => {
+  const c = courses.find(x => x.id === $('aCourse').value);
+  $('printTitle').textContent = c ? `${c.name} (${fmt(c.start_date)} – ${fmt(c.end_date)})` : '';
+  window.print();
+};
 $('exportBtn').onclick = () => {
   const c = courses.find(x => x.id === $('aCourse').value); if (!c) return;
   const name = id => teachers.find(t => t.id === id)?.name || '?';
