@@ -37,6 +37,11 @@ td.m b{font-size:1.1rem}
 .msg{margin:10px 0;font-weight:700}.err{color:#c0392b}.ok{color:var(--can)}
 ul.plain{list-style:none;padding:0;margin:0}ul.plain li{padding:8px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px}
 .hide{display:none}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
+#modal.hide{display:none}
+#modal .box{background:var(--card);border:1px solid var(--line);border-radius:10px;max-width:440px;width:100%;padding:22px;position:relative}
+#modal .x{position:absolute;top:8px;right:8px;background:none;border:none;color:var(--ink);font-size:1.5rem;line-height:1;padding:6px 10px}
+#modal .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
 .printOnly{display:none}
 @page{size:A4 landscape;margin:12mm}
 @media print{
@@ -135,6 +140,14 @@ ul.plain{list-style:none;padding:0;margin:0}ul.plain li{padding:8px 0;border-bot
 </section>
 
 </main>
+<div id="modal" class="hide" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+  <div class="box">
+    <button class="x" id="mX" aria-label="Abbrechen">&times;</button>
+    <h2 id="mTitle" style="margin-top:0">Bitte kurz prüfen</h2>
+    <p id="mText"></p>
+    <div class="btns"><button id="mOk">Ja, speichern</button><button id="mCancel" class="sec">Abbrechen</button></div>
+  </div>
+</div>
 <script>
 /* ====== HIER EINTRAGEN (siehe Anleitung) ====== */
 const SUPABASE_URL = 'https://rayowkplemhsqmnxxaoc.supabase.co';
@@ -215,7 +228,7 @@ async function loadForm() {
   $('note').value = n.data?.note || '';
   drawGrid();
 }
-$('saveBtn').onclick = async () => {
+async function doSave() {
   const t = $('tSel').value, c = $('cSel').value, m = $('saveMsg');
   m.className = 'msg'; m.textContent = 'Speichern …';
   const rows = Object.entries(state).filter(([, v]) => v).map(([k, v]) => {
@@ -228,7 +241,18 @@ $('saveBtn').onclick = async () => {
   const err = r1.error || r2.error || r3.error;
   m.className = 'msg ' + (err ? 'err' : 'ok');
   m.textContent = err ? 'Fehler beim Speichern: ' + err.message : 'Gespeichert. Du kannst deinen Eintrag jederzeit wieder ändern.';
+}
+
+const closeModal = () => $('modal').classList.add('hide');
+$('saveBtn').onclick = () => {
+  const t = teachers.find(x => x.id === $('tSel').value);
+  $('mText').innerHTML = `Ist das der richtige Name (<b>${esc(t?.name || '')}</b>) und wurde nichts versehentlich gelöscht oder verändert?`;
+  $('modal').classList.remove('hide');
+  $('mOk').focus();
 };
+$('mOk').onclick = () => { closeModal(); doSave(); };
+$('mCancel').onclick = $('mX').onclick = closeModal;
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 /* ---------- Admin ---------- */
 function adminInit() {
